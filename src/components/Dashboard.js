@@ -2,6 +2,12 @@ import React, { Component } from "react";
 import classnames from "classnames";
 import axios from "axios"
 
+import { getTotalInterviews,
+  getLeastPopularTimeSlot,
+  getMostPopularDay,
+  getInterviewsPerDay
+ } from "helpers/selectors";
+import { setInterview } from "helpers/reducers";
 import Loading from "components/Loading"
 import Panel from "./Panel";
 
@@ -9,22 +15,22 @@ const data = [
   {
     id: 1,
     label: "Total Interviews",
-    value: 6
+    getValue: getTotalInterviews
   },
   {
     id: 2,
     label: "Least Popular Time Slot",
-    value: "1pm"
+    getValue: getLeastPopularTimeSlot
   },
   {
     id: 3,
     label: "Most Popular Day",
-    value: "Wednesday"
+    getValue: getMostPopularDay
   },
   {
     id: 4,
     label: "Interviews Per Day",
-    value: "2.3"
+    getValue: getInterviewsPerDay
   }
 ];
 
@@ -69,6 +75,18 @@ class Dashboard extends Component {
         interviewers: interviewers.data
       });
     });
+
+    this.socket = new WebSocket(process.env.REACT_APP_WEBSOCKET_URL);
+
+    this.socket.onmessage = event => {
+      const data = JSON.parse(event.data);
+    
+      if (typeof data === "object" && data.type === "SET_INTERVIEW") {
+        this.setState(previousState =>
+          setInterview(previousState, data.id, data.interview)
+        );
+      }
+    };
   }
 
   componentDidUpdate(previousProps, previousState) {
@@ -77,7 +95,12 @@ class Dashboard extends Component {
     }
   }
 
+  componentWillUnmount() {
+    this.socket.close();
+  }
+
   render() {
+    console.log(this.state)
     const dashboardClasses = classnames("dashboard", {
       "dashboard--focused": this.state.focused
     });
@@ -87,13 +110,12 @@ class Dashboard extends Component {
         panel => this.state.focused === null || this.state.focused === panel.id
       )
       .map(panel => (
-      <Panel
+        <Panel
         key={panel.id}
-        id={panel.id}
         label={panel.label}
-        value={panel.value}
-        onSelect={this.selectPanel}
-      />
+        value={panel.getValue(this.state)}
+        onSelect={() => this.selectPanel(panel.id)}
+       />
     ));
 
     if (this.state.loading) {
